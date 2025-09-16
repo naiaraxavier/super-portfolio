@@ -1,0 +1,31 @@
+version: "3.9"
+services:
+  app:
+    build: .
+    container_name: next-app
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    depends_on:
+      - psql
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: sh -c "npx prisma migrate deploy && npm run dev"
+
+  psql:
+    image: postgres:15-alpine
+    container_name: db-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
