@@ -12,6 +12,7 @@ async function main() {
       email: "naiaraxf@gmail.com",
       bio: "Desenvolvedora Full Stack apaixonada por criar portfólios digitais.",
       avatarUrl: "https://i.imgur.com/ExemploAvatar.png",
+      passwordHash: "password_example",
       skills: {
         create: [
           {
