@@ -1,32 +1,30 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Criar usuário
-  const user = await prisma.user.create({
-    data: {
+  const hashedPassword = await bcrypt.hash("password_example", 10);
+
+  const user = await prisma.user.upsert({
+    where: { email: "naiaraxf@gmail.com" }, // identifica o usuário existente
+    update: { passwordHash: hashedPassword }, // se existir, atualiza a senha
+    create: {
       username: "naiara123",
       firstName: "Naiara",
       lastName: "Martins",
       email: "naiaraxf@gmail.com",
       bio: "Desenvolvedora Full Stack apaixonada por criar portfólios digitais.",
       avatarUrl: "https://i.imgur.com/ExemploAvatar.png",
-      passwordHash: "password_example",
+      passwordHash: hashedPassword,
       skills: {
         create: [
-          {
-            name: "React",
-            iconUrl: "https://i.imgur.com/ReactIcon.png",
-          },
+          { name: "React", iconUrl: "https://i.imgur.com/ReactIcon.png" },
           {
             name: "TypeScript",
             iconUrl: "https://i.imgur.com/TypeScriptIcon.png",
           },
-          {
-            name: "Next.js",
-            iconUrl: "https://i.imgur.com/NextjsIcon.png",
-          },
+          { name: "Next.js", iconUrl: "https://i.imgur.com/NextjsIcon.png" },
         ],
       },
       projects: {
@@ -48,10 +46,7 @@ async function main() {
       },
       contacts: {
         create: [
-          {
-            type: "GitHub",
-            value: "https://github.com/naiarax",
-          },
+          { type: "GitHub", value: "https://github.com/naiarax" },
           {
             type: "LinkedIn",
             value: "https://www.linkedin.com/in/naiarafxmartins/",
@@ -65,10 +60,5 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => console.error(e))
+  .finally(async () => await prisma.$disconnect());
