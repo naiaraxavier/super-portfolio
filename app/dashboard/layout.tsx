@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { signOut } from "next-auth/react";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -82,10 +83,12 @@ export default function DashboardLayout({
             <Button
               variant="ghost"
               className="w-full justify-start gap-3 text-muted-foreground"
-              onClick={() => {
-                // TODO: Implement logout
-                window.location.href = "/auth/signin";
-              }}
+              onClick={() =>
+                signOut({
+                  redirect: true, // faz redirecionamento
+                  callbackUrl: "/auth/signin", // página para onde o usuário vai
+                })
+              }
             >
               <LogOut className="h-5 w-5" />
               Sair
