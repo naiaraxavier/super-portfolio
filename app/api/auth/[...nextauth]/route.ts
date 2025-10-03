@@ -30,6 +30,15 @@ export const authOptions = {
       },
     }),
   ],
+  callbacks: {
+    async session({ session, user }: { session: any; user: any }) {
+      // adiciona o id do usuário no objeto session
+      if (session.user) {
+        session.user.id = user.id;
+      }
+      return session;
+    },
+  },
   pages: {
     signIn: "/auth/signin", // tela de login customizada
     newUser: "/dashboard", // para onde mandar usuário recém-criado

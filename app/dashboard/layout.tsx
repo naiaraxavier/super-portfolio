@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { signOut } from "next-auth/react";
+import { SessionProvider, signOut } from "next-auth/react";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -99,7 +99,9 @@ export default function DashboardLayout({
 
       {/* Main Content */}
       <div className="pl-64">
-        <main className="min-h-screen p-8">{children}</main>
+        <main className="min-h-screen p-8">
+          <SessionProvider>{children}</SessionProvider>
+        </main>
       </div>
     </div>
   );
