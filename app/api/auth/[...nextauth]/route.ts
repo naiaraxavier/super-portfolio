@@ -4,6 +4,7 @@ import NextAuth, { Session, SessionStrategy } from "next-auth";
 declare module "next-auth" {
   interface Session {
     user: {
+      username: any;
       id: string;
       name?: string | null;
       email?: string | null;
@@ -42,6 +43,7 @@ export const authOptions = {
         // Retorna apenas os campos necessários
         return {
           id: user.id,
+          username: user.username,
           email: user.email,
           name: `${user.firstName} ${user.lastName}`,
         };
@@ -50,12 +52,25 @@ export const authOptions = {
   ],
 
   callbacks: {
-    async jwt({ token, user }: { token: any; user?: { id: string } }) {
-      if (user) token.id = user.id;
+    async jwt({
+      token,
+      user,
+    }: {
+      token: any;
+      user?: { id: string; username?: string };
+    }) {
+      if (user) {
+        token.id = user.id;
+        token.username = user.username; // ✅ adicionado
+      }
       return token;
     },
+
     async session({ session, token }: { session: Session; token: any }) {
-      if (token?.id && session.user) session.user.id = token.id;
+      if (session.user) {
+        session.user.id = token.id;
+        session.user.username = token.username; // ✅ agora username vai existir
+      }
       return session;
     },
   },

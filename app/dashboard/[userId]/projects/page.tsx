@@ -355,7 +355,7 @@ export default function ProjectsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-4">
           {projects.map((project) => (
             <Card key={project.id} className="overflow-hidden max-w-sm">
               <div className="aspect-video w-full overflow-hidden bg-muted">

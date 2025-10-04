@@ -41,6 +41,7 @@ export default function DashboardLayout({
   }
 
   const userId = session.user.id; // ✅ aqui definimos o userId
+  const usename = session.user.username;
 
   const navigation = [
     {
@@ -100,7 +101,7 @@ export default function DashboardLayout({
         </nav>
 
         <div className="border-t p-3 space-y-2">
-          <Link href={`/portfolio/${userId}`} target="_blank">
+          <Link href={`/portfolio/${usename}`} target="_blank">
             <Button
               variant="outline"
               className="w-full justify-start gap-3 bg-transparent"
