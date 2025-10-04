@@ -108,12 +108,27 @@ export default function ProfileContent({ userId }: Props) {
 
   // Upload de avatar
   async function handleUpload(file: File) {
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64String = reader.result as string;
-      await updateProfile({ avatarUrl: base64String });
-    };
-    reader.readAsDataURL(file);
+    const formData = new FormData();
+    formData.append("file", file); // aqui deve bater com o nome que o backend espera
+
+    try {
+      const res = await fetch("/api/profile/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Erro ao enviar imagem");
+
+      const data = await res.json();
+      // Salva apenas o caminho da imagem no banco
+      await updateProfile({ avatarUrl: data.url });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível enviar a imagem.",
+        variant: "destructive",
+      });
+    }
   }
 
   function handleClickUpload() {
