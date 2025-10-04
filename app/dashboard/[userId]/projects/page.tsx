@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -55,6 +56,8 @@ type Project = {
 };
 
 export default function ProjectsPage() {
+  const { data: session } = useSession();
+  const userId = session?.user?.id;
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -71,29 +74,60 @@ export default function ProjectsPage() {
     },
   });
 
+  useEffect(() => {
+    if (!userId) return;
+    async function loadProjects() {
+      try {
+        const res = await fetch(`/api/profile/projects?userId=${userId}`);
+        if (!res.ok) throw new Error("Erro ao buscar projetos");
+        const data: Project[] = await res.json();
+        setProjects(data);
+      } catch {
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar os projetos.",
+          variant: "destructive",
+        });
+      }
+    }
+    loadProjects();
+  }, [userId]);
+
   async function onSubmit(data: ProjectFormValues) {
+    if (!userId) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // TODO: Implement API call to create/update project
-      console.log("[v0] Project data:", data);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const body = editingProject
+        ? { ...data, id: editingProject.id, userId }
+        : { ...data, userId };
+      const method = editingProject ? "PUT" : "POST";
+
+      const res = await fetch("/api/profile/projects", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Erro ao salvar projeto");
+      const savedProject: Project = await res.json();
 
       if (editingProject) {
         setProjects(
-          projects.map((p) =>
-            p.id === editingProject.id ? { ...p, ...data } : p
-          )
+          projects.map((p) => (p.id === savedProject.id ? savedProject : p))
         );
         toast({
           title: "Projeto atualizado",
           description: "O projeto foi atualizado com sucesso.",
         });
       } else {
-        const newProject: Project = {
-          id: Math.random().toString(),
-          ...data,
-        };
-        setProjects([...projects, newProject]);
+        setProjects([...projects, savedProject]);
         toast({
           title: "Projeto adicionado",
           description: "O projeto foi adicionado com sucesso.",
@@ -103,7 +137,7 @@ export default function ProjectsPage() {
       form.reset();
       setIsDialogOpen(false);
       setEditingProject(null);
-    } catch (error) {
+    } catch {
       toast({
         title: "Erro",
         description: "Ocorreu um erro ao salvar o projeto.",
@@ -111,6 +145,34 @@ export default function ProjectsPage() {
       });
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      const res = await fetch(`/api/profile/projects?id=${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Erro ao deletar");
+      setProjects(projects.filter((p) => p.id !== id));
+      toast({
+        title: "Projeto removido",
+        description: "O projeto foi removido com sucesso.",
+      });
+    } catch {
+      toast({
+        title: "Erro",
+        description: "Não foi possível deletar o projeto.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  function handleDialogChange(open: boolean) {
+    setIsDialogOpen(open);
+    if (!open) {
+      setEditingProject(null);
+      form.reset();
     }
   }
 
@@ -125,20 +187,6 @@ export default function ProjectsPage() {
     setIsDialogOpen(true);
   }
 
-  function handleDelete(id: string) {
-    setProjects(projects.filter((p) => p.id !== id));
-    toast({
-      title: "Projeto removido",
-      description: "O projeto foi removido com sucesso.",
-    });
-  }
-
-  function handleDialogClose() {
-    setIsDialogOpen(false);
-    setEditingProject(null);
-    form.reset();
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -149,7 +197,7 @@ export default function ProjectsPage() {
           </p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+        <Dialog open={isDialogOpen} onOpenChange={handleDialogChange}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
@@ -252,7 +300,7 @@ export default function ProjectsPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={handleDialogClose}
+                    onClick={() => handleDialogChange(false)}
                   >
                     Cancelar
                   </Button>
@@ -292,7 +340,8 @@ export default function ProjectsPage() {
                   <img
                     src={
                       project.imageUrl ||
-                      "/placeholder.svg?height=400&width=600"
+                      "/placeholder.svg?height=400&width=600" ||
+                      "/placeholder.svg"
                     }
                     alt={project.title}
                     className="h-full w-full object-cover"
