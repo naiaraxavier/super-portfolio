@@ -41,10 +41,9 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 type Props = { userId: string };
 
 export default function ProfileContent({ userId }: Props) {
-  console.log("Rendering ProfileContent for userId:", userId);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -61,15 +60,24 @@ export default function ProfileContent({ userId }: Props) {
   // Carregar dados do usuário
   useEffect(() => {
     async function fetchUser() {
-      const res = await fetch(`/api/profile/${userId}`);
-      if (res.ok) {
+      try {
+        const res = await fetch(`/api/profile/${userId}`);
+        if (!res.ok) throw new Error("Erro ao carregar perfil");
+
         const data = await res.json();
         form.reset(data);
+      } catch (err) {
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar os dados do perfil.",
+          variant: "destructive",
+        });
       }
     }
     fetchUser();
   }, [userId]);
 
+  // Atualizar perfil
   async function updateProfile(updateData: Partial<ProfileFormValues>) {
     setIsLoading(true);
     try {
@@ -98,7 +106,7 @@ export default function ProfileContent({ userId }: Props) {
     }
   }
 
-  // Converte imagem em base64 e atualiza avatarUrl no PUT
+  // Upload de avatar
   async function handleUpload(file: File) {
     const reader = new FileReader();
     reader.onloadend = async () => {
@@ -131,7 +139,7 @@ export default function ProfileContent({ userId }: Props) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Avatar Card */}
+        {/* Avatar */}
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Foto de Perfil</CardTitle>
@@ -167,7 +175,7 @@ export default function ProfileContent({ userId }: Props) {
           </CardContent>
         </Card>
 
-        {/* Profile Form */}
+        {/* Formulário */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Informações Pessoais</CardTitle>

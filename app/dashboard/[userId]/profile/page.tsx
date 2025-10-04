@@ -6,5 +6,7 @@ export default async function ProfilePage() {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
 
+  if (!userId) return <p>Usuário não autenticado</p>;
+
   return <ProfileContent userId={userId} />;
 }
