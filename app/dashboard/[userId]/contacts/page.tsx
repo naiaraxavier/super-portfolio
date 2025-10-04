@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -70,6 +71,9 @@ const contactTypes = [
 ];
 
 export default function ContactsPage() {
+  const { data: session } = useSession();
+  const userId = session?.user?.id;
+
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -78,48 +82,70 @@ export default function ContactsPage() {
 
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactSchema),
-    defaultValues: {
-      type: "",
-      value: "",
-    },
+    defaultValues: { type: "", value: "" },
   });
 
+  useEffect(() => {
+    if (!userId) return;
+    async function loadContacts() {
+      try {
+        const res = await fetch(`/api/profile/contacts?userId=${userId}`);
+        if (!res.ok) throw new Error("Erro ao buscar contatos");
+        const data: Contact[] = await res.json();
+        setContacts(data);
+      } catch {
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar os contatos.",
+          variant: "destructive",
+        });
+      }
+    }
+    loadContacts();
+  }, [userId]);
+
   async function onSubmit(data: ContactFormValues) {
+    if (!userId) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // TODO: Implement API call to create/update contact
-      console.log("[v0] Contact data:", data);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const body = editingContact
+        ? { ...data, id: editingContact.id, userId }
+        : { ...data, userId };
+      const method = editingContact ? "PUT" : "POST";
+
+      const res = await fetch("/api/profile/contacts", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Erro ao salvar contato");
+      const savedContact: Contact = await res.json();
 
       if (editingContact) {
         setContacts(
-          contacts.map((c) =>
-            c.id === editingContact.id ? { ...c, ...data } : c
-          )
+          contacts.map((c) => (c.id === savedContact.id ? savedContact : c))
         );
-        toast({
-          title: "Contato atualizado",
-          description: "O contato foi atualizado com sucesso.",
-        });
+        toast({ title: "Contato atualizado" });
       } else {
-        const newContact: Contact = {
-          id: Math.random().toString(),
-          ...data,
-        };
-        setContacts([...contacts, newContact]);
-        toast({
-          title: "Contato adicionado",
-          description: "O contato foi adicionado com sucesso.",
-        });
+        setContacts([...contacts, savedContact]);
+        toast({ title: "Contato adicionado" });
       }
 
       form.reset();
-      setIsDialogOpen(false);
       setEditingContact(null);
-    } catch (error) {
+      setIsDialogOpen(false);
+    } catch {
       toast({
         title: "Erro",
-        description: "Ocorreu um erro ao salvar o contato.",
+        description: "Não foi possível salvar o contato.",
         variant: "destructive",
       });
     } finally {
@@ -129,30 +155,37 @@ export default function ContactsPage() {
 
   function handleEdit(contact: Contact) {
     setEditingContact(contact);
-    form.reset({
-      type: contact.type,
-      value: contact.value,
-    });
+    form.reset({ type: contact.type, value: contact.value });
     setIsDialogOpen(true);
   }
 
-  function handleDelete(id: string) {
-    setContacts(contacts.filter((c) => c.id !== id));
-    toast({
-      title: "Contato removido",
-      description: "O contato foi removido com sucesso.",
-    });
+  async function handleDelete(id: string) {
+    try {
+      const res = await fetch(`/api/profile/contacts?id=${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Erro ao deletar");
+      setContacts(contacts.filter((c) => c.id !== id));
+      toast({ title: "Contato removido" });
+    } catch {
+      toast({
+        title: "Erro",
+        description: "Não foi possível deletar o contato.",
+        variant: "destructive",
+      });
+    }
   }
 
-  function handleDialogClose() {
-    setIsDialogOpen(false);
-    setEditingContact(null);
-    form.reset();
+  function handleDialogChange(open: boolean) {
+    setIsDialogOpen(open);
+    if (!open) {
+      setEditingContact(null);
+      form.reset();
+    }
   }
 
   function getContactIcon(type: string) {
-    const contactType = contactTypes.find((ct) => ct.value === type);
-    return contactType?.icon || Globe;
+    return contactTypes.find((ct) => ct.value === type)?.icon || Globe;
   }
 
   return (
@@ -165,11 +198,10 @@ export default function ContactsPage() {
           </p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+        <Dialog open={isDialogOpen} onOpenChange={handleDialogChange}>
           <DialogTrigger asChild>
             <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Adicionar Contato
+              <Plus className="h-4 w-4" /> Adicionar Contato
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -197,7 +229,7 @@ export default function ContactsPage() {
                       <FormLabel>Tipo de Contato</FormLabel>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -244,7 +276,7 @@ export default function ContactsPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={handleDialogClose}
+                    onClick={() => setIsDialogOpen(false)}
                   >
                     Cancelar
                   </Button>
@@ -308,8 +340,7 @@ export default function ContactsPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <ExternalLink className="h-3 w-3 mr-1" />
-                      Abrir
+                      <ExternalLink className="h-3 w-3 mr-1" /> Abrir
                     </a>
                   </Button>
                   <Button
