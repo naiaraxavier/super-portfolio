@@ -42,7 +42,7 @@ const projectSchema = z.object({
     .max(500, "Descrição deve ter no máximo 500 caracteres")
     .optional(),
   link: z.string().url("URL inválida").optional().or(z.literal("")),
-  imageUrl: z.string().url("URL inválida").optional().or(z.literal("")),
+  imageUrl: z.any().optional(), // Pode ser File ou string
 });
 
 type ProjectFormValues = z.infer<typeof projectSchema>;
@@ -93,6 +93,21 @@ export default function ProjectsPage() {
     loadProjects();
   }, [userId]);
 
+  async function handleImageUpload(file: File) {
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const res = await fetch("/api/profile/projects/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Erro ao enviar imagem");
+
+    return data.imageUrl;
+  }
+
   async function onSubmit(data: ProjectFormValues) {
     if (!userId) {
       toast({
@@ -105,9 +120,17 @@ export default function ProjectsPage() {
 
     setIsLoading(true);
     try {
+      let imageUrl = data.imageUrl;
+
+      // Se for um arquivo, faz upload
+      if (data.imageUrl instanceof File) {
+        imageUrl = await handleImageUpload(data.imageUrl);
+      }
+
       const body = editingProject
-        ? { ...data, id: editingProject.id, userId }
-        : { ...data, userId };
+        ? { ...data, id: editingProject.id, userId, imageUrl }
+        : { ...data, userId, imageUrl };
+
       const method = editingProject ? "PUT" : "POST";
 
       const res = await fetch("/api/profile/projects", {
@@ -281,17 +304,17 @@ export default function ProjectsPage() {
                   name="imageUrl"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>URL da Imagem (opcional)</FormLabel>
+                      <FormLabel>Imagem de Capa (opcional)</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="https://exemplo.com/imagem.jpg"
-                          {...field}
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => field.onChange(e.target.files?.[0])}
                         />
                       </FormControl>
                       <FormDescription>
-                        Imagem de capa do projeto
+                        Selecione a imagem de capa do projeto
                       </FormDescription>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -334,20 +357,19 @@ export default function ProjectsPage() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
           {projects.map((project) => (
-            <Card key={project.id} className="overflow-hidden">
-              {project.imageUrl && (
-                <div className="aspect-video w-full overflow-hidden bg-muted">
-                  <img
-                    src={
-                      project.imageUrl ||
-                      "/placeholder.svg?height=400&width=600" ||
-                      "/placeholder.svg"
-                    }
-                    alt={project.title}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              )}
+            <Card key={project.id} className="overflow-hidden max-w-sm">
+              <div className="aspect-video w-full overflow-hidden bg-muted">
+                <img
+                  src={
+                    project.imageUrl && project.imageUrl !== ""
+                      ? project.imageUrl
+                      : "/placeholder.svg" // <-- Imagem padrão aqui
+                  }
+                  alt={project.title}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
