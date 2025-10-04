@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Plus, Trash2, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSession } from "next-auth/react";
 
 const skillSchema = z.object({
   name: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
@@ -45,6 +46,7 @@ export default function SkillsPage() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
   const { toast } = useToast();
+  const { data: session } = useSession();
 
   const form = useForm<SkillFormValues>({
     resolver: zodResolver(skillSchema),
@@ -54,27 +56,76 @@ export default function SkillsPage() {
     },
   });
 
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetchSkills();
+    }
+  }, [session]);
+
+  async function fetchSkills() {
+    if (!session?.user?.id) return;
+
+    try {
+      const response = await fetch(
+        `/api/profile/skills?userId=${session.user.id}`
+      );
+      if (!response.ok) throw new Error("Erro ao buscar habilidades");
+      const data = await response.json();
+      setSkills(data);
+    } catch (error) {
+      console.error("[v0] Erro ao buscar skills:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as habilidades.",
+        variant: "destructive",
+      });
+    }
+  }
+
   async function onSubmit(data: SkillFormValues) {
+    if (!session?.user?.id) {
+      toast({
+        title: "Erro",
+        description: "Você precisa estar autenticado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // TODO: Implement API call to create/update skill
-      console.log("[v0] Skill data:", data);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
       if (editingSkill) {
+        const response = await fetch("/api/profile/skills", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingSkill.id,
+            ...data,
+            userId: session.user.id,
+          }),
+        });
+
+        if (!response.ok) throw new Error("Erro ao atualizar habilidade");
+
+        const updatedSkill = await response.json();
         setSkills(
-          skills.map((s) => (s.id === editingSkill.id ? { ...s, ...data } : s))
+          skills.map((s) => (s.id === editingSkill.id ? updatedSkill : s))
         );
         toast({
           title: "Habilidade atualizada",
           description: "A habilidade foi atualizada com sucesso.",
         });
       } else {
-        const newSkill: Skill = {
-          id: Math.random().toString(),
-          ...data,
-        };
-        setSkills([...skills, newSkill]);
+        const response = await fetch("/api/profile/skills", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...data, userId: session.user.id }),
+        });
+
+        if (!response.ok) throw new Error("Erro ao criar habilidade");
+
+        const newSkill = await response.json();
+        setSkills([newSkill, ...skills]);
         toast({
           title: "Habilidade adicionada",
           description: "A habilidade foi adicionada com sucesso.",
@@ -85,6 +136,7 @@ export default function SkillsPage() {
       setIsDialogOpen(false);
       setEditingSkill(null);
     } catch (error) {
+      console.error("[v0] Erro ao salvar skill:", error);
       toast({
         title: "Erro",
         description: "Ocorreu um erro ao salvar a habilidade.",
@@ -104,18 +156,40 @@ export default function SkillsPage() {
     setIsDialogOpen(true);
   }
 
-  function handleDelete(id: string) {
-    setSkills(skills.filter((s) => s.id !== id));
-    toast({
-      title: "Habilidade removida",
-      description: "A habilidade foi removida com sucesso.",
-    });
+  async function handleDelete(id: string) {
+    if (!session?.user?.id) return;
+
+    try {
+      const response = await fetch(
+        `/api/profile/skills?id=${id}&userId=${session.user.id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) throw new Error("Erro ao deletar habilidade");
+
+      setSkills(skills.filter((s) => s.id !== id));
+      toast({
+        title: "Habilidade removida",
+        description: "A habilidade foi removida com sucesso.",
+      });
+    } catch (error) {
+      console.error("[v0] Erro ao deletar skill:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível remover a habilidade.",
+        variant: "destructive",
+      });
+    }
   }
 
-  function handleDialogClose() {
-    setIsDialogOpen(false);
-    setEditingSkill(null);
-    form.reset();
+  function handleDialogChange(open: boolean) {
+    setIsDialogOpen(open);
+    if (!open) {
+      setEditingSkill(null);
+      form.reset();
+    }
   }
 
   return (
@@ -128,7 +202,7 @@ export default function SkillsPage() {
           </p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+        <Dialog open={isDialogOpen} onOpenChange={handleDialogChange}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
@@ -190,7 +264,7 @@ export default function SkillsPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={handleDialogClose}
+                    onClick={() => handleDialogChange(false)}
                   >
                     Cancelar
                   </Button>
