@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -29,7 +28,7 @@ import { useSession } from "next-auth/react";
 
 const skillSchema = z.object({
   name: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
-  iconUrl: z.string().url("URL inválida").optional().or(z.literal("")),
+  icon: z.any().optional(), // arquivo File
 });
 
 type SkillFormValues = z.infer<typeof skillSchema>;
@@ -50,36 +49,43 @@ export default function SkillsPage() {
 
   const form = useForm<SkillFormValues>({
     resolver: zodResolver(skillSchema),
-    defaultValues: {
-      name: "",
-      iconUrl: "",
-    },
+    defaultValues: { name: "", icon: "" },
   });
 
   useEffect(() => {
-    if (session?.user?.id) {
-      fetchSkills();
-    }
+    if (session?.user?.id) fetchSkills();
   }, [session]);
 
   async function fetchSkills() {
     if (!session?.user?.id) return;
-
     try {
-      const response = await fetch(
-        `/api/profile/skills?userId=${session.user.id}`
-      );
-      if (!response.ok) throw new Error("Erro ao buscar habilidades");
-      const data = await response.json();
+      const res = await fetch(`/api/profile/skills?userId=${session.user.id}`);
+      if (!res.ok) throw new Error("Erro ao buscar skills");
+      const data = await res.json();
       setSkills(data);
-    } catch (error) {
-      console.error("[v0] Erro ao buscar skills:", error);
+    } catch {
       toast({
         title: "Erro",
         description: "Não foi possível carregar as habilidades.",
         variant: "destructive",
       });
     }
+  }
+
+  // Função para upload do ícone
+  async function handleIconUpload(file: File) {
+    const formData = new FormData();
+    formData.append("icon", file); // deve bater com o backend
+
+    const res = await fetch("/api/profile/skills/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Erro ao enviar ícone");
+
+    return data.iconUrl;
   }
 
   async function onSubmit(data: SkillFormValues) {
@@ -94,38 +100,36 @@ export default function SkillsPage() {
 
     setIsLoading(true);
     try {
+      let iconUrl = editingSkill?.iconUrl || "";
+
+      // Se for um arquivo, faz upload
+      if (data.icon instanceof File) {
+        iconUrl = await handleIconUpload(data.icon);
+      }
+
+      const body = editingSkill
+        ? { ...data, id: editingSkill.id, userId: session.user.id, iconUrl }
+        : { ...data, userId: session.user.id, iconUrl };
+
+      const method = editingSkill ? "PUT" : "POST";
+
+      const res = await fetch("/api/profile/skills", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Erro ao salvar habilidade");
+
+      const savedSkill: Skill = await res.json();
+
       if (editingSkill) {
-        const response = await fetch("/api/profile/skills", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: editingSkill.id,
-            ...data,
-            userId: session.user.id,
-          }),
-        });
-
-        if (!response.ok) throw new Error("Erro ao atualizar habilidade");
-
-        const updatedSkill = await response.json();
-        setSkills(
-          skills.map((s) => (s.id === editingSkill.id ? updatedSkill : s))
-        );
+        setSkills(skills.map((s) => (s.id === savedSkill.id ? savedSkill : s)));
         toast({
           title: "Habilidade atualizada",
           description: "A habilidade foi atualizada com sucesso.",
         });
       } else {
-        const response = await fetch("/api/profile/skills", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...data, userId: session.user.id }),
-        });
-
-        if (!response.ok) throw new Error("Erro ao criar habilidade");
-
-        const newSkill = await response.json();
-        setSkills([newSkill, ...skills]);
+        setSkills([savedSkill, ...skills]);
         toast({
           title: "Habilidade adicionada",
           description: "A habilidade foi adicionada com sucesso.",
@@ -133,10 +137,10 @@ export default function SkillsPage() {
       }
 
       form.reset();
-      setIsDialogOpen(false);
       setEditingSkill(null);
+      setIsDialogOpen(false);
     } catch (error) {
-      console.error("[v0] Erro ao salvar skill:", error);
+      console.error(error);
       toast({
         title: "Erro",
         description: "Ocorreu um erro ao salvar a habilidade.",
@@ -149,33 +153,24 @@ export default function SkillsPage() {
 
   function handleEdit(skill: Skill) {
     setEditingSkill(skill);
-    form.reset({
-      name: skill.name,
-      iconUrl: skill.iconUrl || "",
-    });
+    form.reset({ name: skill.name, icon: "" });
     setIsDialogOpen(true);
   }
 
   async function handleDelete(id: string) {
     if (!session?.user?.id) return;
-
     try {
-      const response = await fetch(
+      const res = await fetch(
         `/api/profile/skills?id=${id}&userId=${session.user.id}`,
-        {
-          method: "DELETE",
-        }
+        { method: "DELETE" }
       );
-
-      if (!response.ok) throw new Error("Erro ao deletar habilidade");
-
+      if (!res.ok) throw new Error("Erro ao deletar habilidade");
       setSkills(skills.filter((s) => s.id !== id));
       toast({
         title: "Habilidade removida",
         description: "A habilidade foi removida com sucesso.",
       });
-    } catch (error) {
-      console.error("[v0] Erro ao deletar skill:", error);
+    } catch {
       toast({
         title: "Erro",
         description: "Não foi possível remover a habilidade.",
@@ -194,6 +189,7 @@ export default function SkillsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header e Botão */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Habilidades</h1>
@@ -214,11 +210,6 @@ export default function SkillsPage() {
               <DialogTitle>
                 {editingSkill ? "Editar Habilidade" : "Nova Habilidade"}
               </DialogTitle>
-              <DialogDescription>
-                {editingSkill
-                  ? "Atualize as informações da habilidade"
-                  : "Adicione uma nova habilidade ao seu portfólio"}
-              </DialogDescription>
             </DialogHeader>
 
             <Form {...form}>
@@ -233,10 +224,7 @@ export default function SkillsPage() {
                     <FormItem>
                       <FormLabel>Nome da Habilidade</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder="React, TypeScript, Design..."
-                          {...field}
-                        />
+                        <Input placeholder="React, TypeScript..." {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -245,14 +233,15 @@ export default function SkillsPage() {
 
                 <FormField
                   control={form.control}
-                  name="iconUrl"
+                  name="icon"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>URL do Ícone (opcional)</FormLabel>
+                      <FormLabel>Ícone da Habilidade (opcional)</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="https://exemplo.com/icone.svg"
-                          {...field}
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => field.onChange(e.target.files?.[0])}
                         />
                       </FormControl>
                       <FormMessage />
@@ -281,63 +270,44 @@ export default function SkillsPage() {
         </Dialog>
       </div>
 
-      {skills.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="rounded-full bg-muted p-4 mb-4">
-              <Plus className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">
-              Nenhuma habilidade cadastrada
-            </h3>
-            <p className="text-muted-foreground text-center mb-4">
-              Comece adicionando suas primeiras habilidades
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {skills.map((skill) => (
-            <Card key={skill.id}>
-              <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-                <div className="flex items-center gap-3">
-                  {skill.iconUrl && (
-                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
-                      <img
-                        src={skill.iconUrl || "/placeholder.svg"}
-                        alt={skill.name}
-                        className="h-6 w-6 object-contain"
-                      />
-                    </div>
-                  )}
-                  <div>
-                    <CardTitle className="text-base">{skill.name}</CardTitle>
-                  </div>
+      {/* Lista de Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {skills.map((skill) => (
+          <Card key={skill.id}>
+            <CardHeader className="flex items-center justify-between pb-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+                  <img
+                    src={skill.iconUrl || "/placeholder.svg"}
+                    alt={skill.name}
+                    className="h-6 w-6 object-contain"
+                  />
                 </div>
-              </CardHeader>
-              <CardContent className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 bg-transparent"
-                  onClick={() => handleEdit(skill)}
-                >
-                  <Pencil className="h-3 w-3 mr-1" />
-                  Editar
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-transparent text-destructive hover:text-destructive"
-                  onClick={() => handleDelete(skill.id)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                <CardTitle className="text-base">{skill.name}</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 bg-transparent"
+                onClick={() => handleEdit(skill)}
+              >
+                <Pencil className="h-3 w-3 mr-1" />
+                Editar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-transparent text-destructive hover:text-destructive"
+                onClick={() => handleDelete(skill.id)}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
