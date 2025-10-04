@@ -1,11 +1,42 @@
+import { getServerSession } from "next-auth/next";
+import { redirect } from "next/navigation";
+import { PrismaClient } from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Briefcase, Lightbulb, Mail, User } from "lucide-react";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-export default function DashboardPage() {
+const prisma = new PrismaClient();
+
+export default async function DashboardPage({
+  params,
+}: {
+  params: { userId: string };
+}) {
+  const { userId } = params;
+  // Pega a sessão do usuário logado
+  const session = await getServerSession(authOptions);
+
+  if (!session) redirect("/auth/signin");
+
+  // Verifica se o usuário logado está acessando seu próprio dashboard
+  if (session.user.id !== userId) {
+    redirect(`/dashboard/${session.user.id}`);
+  }
+
+  // Busca dados do usuário no Prisma
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { projects: true, skills: true, contacts: true },
+  });
+
+  if (!user) return <p>Usuário não encontrado</p>;
+
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Dashboard de {user.firstName}
+        </h1>
         <p className="text-muted-foreground mt-2">
           Gerencie seu portfólio e informações profissionais
         </p>
@@ -18,7 +49,7 @@ export default function DashboardPage() {
             <Briefcase className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{user.projects.length}</div>
             <p className="text-xs text-muted-foreground">
               projetos cadastrados
             </p>
@@ -31,7 +62,7 @@ export default function DashboardPage() {
             <Lightbulb className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{user.skills.length}</div>
             <p className="text-xs text-muted-foreground">
               habilidades cadastradas
             </p>
@@ -44,7 +75,7 @@ export default function DashboardPage() {
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{user.contacts.length}</div>
             <p className="text-xs text-muted-foreground">
               contatos cadastrados
             </p>

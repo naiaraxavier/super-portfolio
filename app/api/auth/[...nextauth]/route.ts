@@ -1,13 +1,22 @@
 import bcrypt from "bcrypt";
-import NextAuth from "next-auth";
-import { PrismaClient } from "@prisma/client";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import NextAuth, { Session, SessionStrategy } from "next-auth";
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+    };
+  }
+}
 import CredentialsProvider from "next-auth/providers/credentials";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 export const authOptions = {
-  adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -16,33 +25,50 @@ export const authOptions = {
         password: { label: "Senha", type: "password" },
       },
       async authorize(credentials) {
+        if (!credentials?.email || !credentials.password)
+          throw new Error("Preencha todos os campos");
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials?.email },
+          where: { email: credentials.email },
         });
-        if (!user) return null;
+        if (!user) throw new Error("Usuário não encontrado");
 
         const valid = await bcrypt.compare(
-          credentials!.password,
+          credentials.password,
           user.passwordHash
         );
+        if (!valid) throw new Error("Senha incorreta");
 
-        return valid ? user : null;
+        // Retorna apenas os campos necessários
+        return {
+          id: user.id,
+          email: user.email,
+          name: `${user.firstName} ${user.lastName}`,
+        };
       },
     }),
   ],
+
   callbacks: {
-    async session({ session, user }: { session: any; user: any }) {
-      // adiciona o id do usuário no objeto session
-      if (session.user) {
-        session.user.id = user.id;
-      }
+    async jwt({ token, user }: { token: any; user?: { id: string } }) {
+      if (user) token.id = user.id;
+      return token;
+    },
+    async session({ session, token }: { session: Session; token: any }) {
+      if (token?.id && session.user) session.user.id = token.id;
       return session;
     },
   },
-  pages: {
-    signIn: "/auth/signin", // tela de login customizada
-    newUser: "/dashboard", // para onde mandar usuário recém-criado
+
+  session: {
+    strategy: "jwt" as SessionStrategy,
   },
+
+  pages: {
+    signIn: "/auth/signin",
+    newUser: "/dashboard",
+  },
+
   secret: process.env.NEXTAUTH_SECRET,
 };
 

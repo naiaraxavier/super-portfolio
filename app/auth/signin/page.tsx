@@ -2,7 +2,7 @@
 
 import * as z from "zod";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -42,12 +42,10 @@ export default function LoginPage() {
       password: values.password,
     });
 
-    if (result?.error) {
-      form.setError("root", {
-        message: "Email ou senha inválidos",
-      });
-    } else {
-      router.push("/dashboard");
+    if (!result?.error) {
+      const session = await getSession();
+      const userId = session?.user?.id; // ✅ precisa estar na sessão via callbacks
+      router.push(`/dashboard/${userId}`);
     }
   }
 

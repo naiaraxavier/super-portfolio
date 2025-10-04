@@ -6,27 +6,25 @@ export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   const url = req.nextUrl.clone();
 
-  // Se acessar a home (/) e não estiver autenticado, vai para login
-  if (!token && url.pathname === "/") {
-    url.pathname = "/auth/signin";
-    return NextResponse.redirect(url);
-  }
-
-  // Se acessar a home (/) e estiver autenticado, vai para dashboard
-  if (token && url.pathname === "/") {
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
-  }
-
   // Se não estiver autenticado e tentar acessar rotas protegidas
   if (!token && url.pathname.startsWith("/dashboard")) {
     url.pathname = "/auth/signin";
     return NextResponse.redirect(url);
   }
 
-  // Se estiver autenticado e tentar acessar login/registro
+  // Se acessar a home ("/")
+  if (url.pathname === "/") {
+    if (token) {
+      url.pathname = `/dashboard/${token.id}`; // ✅ redireciona pro dashboard do usuário logado
+    } else {
+      url.pathname = "/auth/signin";
+    }
+    return NextResponse.redirect(url);
+  }
+
+  // Se estiver autenticado e tentar acessar login
   if (token && url.pathname.startsWith("/auth/signin")) {
-    url.pathname = "/dashboard";
+    url.pathname = `/dashboard/${token.id}`; // ✅ redireciona pro dashboard pessoal
     return NextResponse.redirect(url);
   }
 
