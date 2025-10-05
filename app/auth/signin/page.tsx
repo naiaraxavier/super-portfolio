@@ -16,6 +16,8 @@ import {
   FormMessage,
   FormControl,
 } from "@/components/ui/form";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Email inválido" }),
@@ -26,6 +28,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const { toast } = useToast();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -36,16 +39,37 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: LoginFormValues) {
-    const result = await signIn("credentials", {
-      redirect: false,
-      email: values.email,
-      password: values.password,
-    });
+    try {
+      const result = await signIn("credentials", {
+        redirect: false,
+        email: values.email,
+        password: values.password,
+      });
 
-    if (!result?.error) {
+      if (result?.error) {
+        toast({
+          title: "Erro",
+          description: "Email ou senha incorretos.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Login realizado",
+        description: "Bem-vindo de volta!",
+        variant: "default",
+      });
+
       const session = await getSession();
-      const userId = session?.user?.id; // ✅ precisa estar na sessão via callbacks
-      router.push(`/dashboard/${userId}`);
+      const userId = session?.user?.id;
+      if (userId) router.push(`/dashboard/${userId}`);
+    } catch {
+      toast({
+        title: "Erro",
+        description: "Não foi possível realizar o login.",
+        variant: "destructive",
+      });
     }
   }
 
@@ -124,8 +148,11 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={form.formState.isSubmitting}
-                className="w-full h-12 text-base font-medium bg-primary hover:bg-primary/90 text-primary-foreground"
+                className="w-full h-12 text-base font-medium bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2"
               >
+                {form.formState.isSubmitting && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
                 {form.formState.isSubmitting ? "Entrando..." : "Entrar"}
               </Button>
             </form>
@@ -174,60 +201,28 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg
-                  className="w-3.5 h-3.5 text-accent"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
+            {[
+              "Galeria personalizável para seus projetos",
+              "Design responsivo e profissional",
+              "Compartilhe facilmente com clientes e recrutadores",
+            ].map((text, idx) => (
+              <div key={idx} className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg
+                    className="w-3.5 h-3.5 text-accent"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <p className="text-muted-foreground leading-relaxed">{text}</p>
               </div>
-              <p className="text-muted-foreground leading-relaxed">
-                Galeria personalizável para seus projetos
-              </p>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg
-                  className="w-3.5 h-3.5 text-accent"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-              <p className="text-muted-foreground leading-relaxed">
-                Design responsivo e profissional
-              </p>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg
-                  className="w-3.5 h-3.5 text-accent"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-              <p className="text-muted-foreground leading-relaxed">
-                Compartilhe facilmente com clientes e recrutadores
-              </p>
-            </div>
+            ))}
           </div>
         </div>
       </div>

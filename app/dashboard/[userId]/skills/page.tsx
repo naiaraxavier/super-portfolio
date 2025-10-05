@@ -271,43 +271,59 @@ export default function SkillsPage() {
       </div>
 
       {/* Lista de Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {skills.map((skill) => (
-          <Card key={skill.id}>
-            <CardHeader className="flex items-center justify-between pb-3">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
-                  <img
-                    src={skill.iconUrl || "/placeholder.svg"}
-                    alt={skill.name}
-                    className="h-6 w-6 object-contain"
-                  />
+      {skills.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="rounded-full bg-muted p-4 mb-4">
+              <Plus className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">
+              Nenhuma habilidade cadastrada
+            </h3>
+            <p className="text-muted-foreground text-center mb-4">
+              Comece adicionando suas competências e conhecimentos
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {skills.map((skill) => (
+            <Card key={skill.id}>
+              <CardHeader className="flex items-center justify-between pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+                    <img
+                      src={skill.iconUrl || "/placeholder.svg"}
+                      alt={skill.name}
+                      className="h-6 w-6 object-contain"
+                    />
+                  </div>
+                  <CardTitle className="text-base">{skill.name}</CardTitle>
                 </div>
-                <CardTitle className="text-base">{skill.name}</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 bg-transparent"
-                onClick={() => handleEdit(skill)}
-              >
-                <Pencil className="h-3 w-3 mr-1" />
-                Editar
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-transparent text-destructive hover:text-destructive"
-                onClick={() => handleDelete(skill.id)}
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardHeader>
+              <CardContent className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 bg-transparent"
+                  onClick={() => handleEdit(skill)}
+                >
+                  <Pencil className="h-3 w-3 mr-1" />
+                  Editar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-transparent text-destructive hover:text-destructive"
+                  onClick={() => handleDelete(skill.id)}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
